@@ -4,3 +4,6 @@ __pycache__
 .pytest_cache
 .vscode
 /logs
+/build
+/dist
+fast_bridge.spec
