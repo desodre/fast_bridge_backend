@@ -1,7 +1,7 @@
-import asyncio,json, logging, socket, struct, retry
+import asyncio,json, logging, socket, struct, retry, av
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
-
 from adbutils import AdbError, Network
 from adbutils._adb import AdbConnection
 from adbutils._device import AdbDevice
@@ -133,6 +133,9 @@ class ScrcpyServer:
     async def _stream_video_to_websocket(self, conn: socket.socket, ws: WebSocket):
         # Set socket to non-blocking mode
         conn.setblocking(False)
+        loop = asyncio.get_event_loop()
+
+        codec = av.CodecContext.create('h264', 'r')
 
         while True:
             # check if ws closed
@@ -140,12 +143,20 @@ class ScrcpyServer:
                 logger.info('WebSocket no longer connected. Exiting video stream.')
                 break
             # Use asyncio to read data asynchronously
-            data = await asyncio.get_event_loop().sock_recv(conn, 1024 * 1024)
+            data = await loop.sock_recv(conn, 1024 * 1024)
             if not data:
                 logger.warning('No data received, connection may be closed.')
                 raise ConnectionError("Video stream ended unexpectedly")
-            # send data to ws
-            await ws.send_bytes(data)
+
+            # Decode h264 packets and send JPEG frames
+            packets = codec.parse(data)
+            for packet in packets:
+                frames = codec.decode(packet)
+                for frame in frames:
+                    img = frame.to_image()
+                    buf = BytesIO()
+                    img.save(buf, format='JPEG', quality=75)
+                    await ws.send_bytes(buf.getvalue())
 
     async def _handle_control_websocket(self, ws: WebSocket):
         while True:
