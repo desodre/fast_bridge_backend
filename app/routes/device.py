@@ -130,7 +130,6 @@ def send_touch(device_serial:str, x:int, y:int):
 
 @router.websocket('/ws/device/{device_serial}/control')
 async def control_device_websocket(websocket: WebSocket, device_serial:str):
-    device = get_cached_device(device_serial)
     await websocket.accept()
     log.info(f'WebSocket connection accepted for device {device_serial}')
     try:
