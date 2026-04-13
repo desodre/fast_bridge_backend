@@ -278,6 +278,16 @@ Canal bidirecional que combina streaming de vídeo (scrcpy) com controle do disp
 
 | `type` | Campos adicionais | Descrição |
 |---|---|---|
+<!-- Touch Input Documentation -->
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `touchDown` | Event | Triggered when a touch begins on the screen |
+| `xP` | Float | Horizontal position as percentage (0.0–1.0, where 0.0 is left edge and 1.0 is right edge) |
+| `yP` | Float | Vertical position as percentage (0.0–1.0, where 0.0 is top edge and 1.0 is bottom edge) |
+
+**Health Status**: ✅ Active and maintained
+
+**Usage Example**:
 | `touchDown` | `xP`, `yP` (0.0–1.0) | Toque iniciado (coordenadas percentuais) |
 | `touchMove` | `xP`, `yP` (0.0–1.0) | Arrastar |
 | `touchUp` | `xP`, `yP` (0.0–1.0) | Toque liberado |

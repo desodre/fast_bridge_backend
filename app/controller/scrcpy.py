@@ -75,8 +75,8 @@ class ScrcpyServer:
             self._control_conn.close()
             self._video_conn.close()
             self._shell_conn.close()
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Error closing scrcpy connections: {e}")
 
     def __del__(self):
         self.close()
@@ -128,6 +128,7 @@ class ScrcpyServer:
             for task in (video_task, control_task):
                 if not task.done():
                     task.cancel()
+            self.close()
             logger.info(f"[Unified] WebSocket closed for serial={serial}")
 
     async def _stream_video_to_websocket(self, conn: socket.socket, ws: WebSocket):
@@ -184,7 +185,7 @@ class ScrcpyServer:
                     self.device.shell(f'input keyevent {event_number}')
                 elif message_type == 'text':
                     text = message['detail']
-                    self.device.shell(f'am broadcast -a SONIC_KEYBOARD --es msg \'{text}\'')
+                    self.device.shell(['am', 'broadcast', '-a', 'SONIC_KEYBOARD', '--es', 'msg', text])
                 elif message_type == 'ping':
                     await ws.send_text(json.dumps({"type": "pong"}))
             except json.JSONDecodeError as e:
