@@ -20,6 +20,7 @@ Backend da aplicação **Fast Bridge** — uma API REST, WebSocket e MCP para co
   - [Shell ADB](#shell-adb)
   - [WebSocket — Controle em Tempo Real](#websocket--controle-em-tempo-real)
 - [Servidor MCP](#servidor-mcp)
+  - [Skill `fast-bridge` para Agentes](#skill-fast-bridge-para-agentes)
 - [Modelos de Dados](#modelos-de-dados)
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Testes](#testes)
@@ -47,8 +48,8 @@ O **Fast Bridge Backend** expõe dispositivos Android conectados via USB (ADB) c
 
 ```
 fast_bridge_backend/
-├── main.py                        # Ponto de entrada — FastAPI + Uvicorn + montagem do MCP
-├── mcp_server.py                  # Servidor MCP (FastMCP) com as 4 ferramentas de controle
+├── main.py                        # Ponto de entrada — FastAPI + Uvicorn
+├── mcp_entry.py                   # Entrypoint MCP (FastMCP) em STDIO
 ├── pyproject.toml                 # Dependências gerenciadas via UV
 ├── app/
 │   ├── dependencies.py            # DeviceManager singleton + get_device_manager()
@@ -166,7 +167,7 @@ python main.py
 
 O servidor sobe em `http://localhost:8000`.
 - Swagger UI: `http://localhost:8000/docs`
-- MCP (Streamable HTTP): `http://localhost:8000/mcp`
+- MCP (STDIO): `python mcp_entry.py`
 
 ---
 
@@ -399,12 +400,85 @@ Canal bidirecional que combina streaming de vídeo (scrcpy) com controle do disp
 
 ## Servidor MCP
 
-O servidor MCP é montado em `/mcp` (Streamable HTTP transport) e expõe ferramentas para controle de dispositivos por LLMs (ex.: Claude).
+O servidor MCP usa somente transporte **STDIO**.
+
+**Execução direta:**
+```bash
+python mcp_entry.py
+```
 
 **Configuração no Claude Desktop:**
 ```json
-{ "url": "http://localhost:8000/mcp" }
+{
+  "mcpServers": {
+    "fast-bridge": {
+      "command": "python",
+      "args": ["mcp_entry.py"]
+    }
+  }
+}
 ```
+
+### Skill `fast-bridge` para Agentes
+
+Além da integração MCP padrão, o projeto inclui um fluxo operacional para agentes (ex.: Copilot CLI) controlarem Android de forma confiável.
+
+**Configuração recomendada do servidor MCP para a skill:**
+
+- **Command:** `.venv/bin/python` (ou `python` com o ambiente virtual ativo)
+- **Argument:** `mcp_entry.py` (a partir da raiz do projeto)
+
+#### Regras operacionais (loop obrigatório)
+
+1. **Descoberta:** chame `list_connected_devices`.
+2. **Inspeção:** chame `get_ui_hierarchy(serial)` e localize o alvo no XML.
+3. **Ação:** execute `execute_adb_command(serial, command)`.
+4. **Verificação:** sempre chame `get_ui_hierarchy` (ou `take_screenshot`) após a ação.
+
+Esse ciclo evita automações “cegas” e garante confirmação de estado em cada etapa.
+
+#### Coordenadas de toque (tap)
+
+Para tocar em um elemento da UI, use `bounds` do XML:
+
+```text
+bounds="[left,top][right,bottom]"
+center_x = (left + right) / 2
+center_y = (top + bottom) / 2
+```
+
+Depois envie:
+
+```json
+["input", "tap", "<center_x>", "<center_y>"]
+```
+
+#### Ferramentas usadas no fluxo
+
+As ferramentas MCP expostas pelo backend são:
+
+- `list_connected_devices`
+- `get_ui_hierarchy(serial)`
+- `take_screenshot(serial)`
+- `execute_adb_command(serial, command)`
+
+Em alguns clientes/agentes, elas podem aparecer com prefixo de namespace (por exemplo, `fb-list_connected_devices`, `fb-get_ui_hierarchy`, etc.). A funcionalidade é a mesma.
+
+#### Segurança do `execute_adb_command`
+
+- **Whitelist** de comandos: `input`, `am`, `pm`, `dumpsys`, `getprop`, `settings`, `service`, `wm`, `cmd`.
+- Bloqueio de metacaracteres de shell (`;`, `|`, `&`, `$`, `` ` ``, `>`, `<`, quebras de linha).
+- O comando deve ser enviado tokenizado (`list[str]`), sem concatenação shell.
+
+#### Troubleshooting rápido
+
+- Skill carregou, mas as tools não aparecem no agente:
+  - valide se o MCP está rodando com o `command`/`args` acima;
+  - confira se o cliente realmente conectou ao servidor `fast-bridge` nesta sessão.
+- `am start` retorna sucesso, mas a UI não mudou:
+  - execute o passo de **Verificação** e tente uma intent mais explícita (`-n package/.Activity` ou deep link).
+- XML grande/difícil de interpretar:
+  - complemente com `take_screenshot(serial)` para confirmação visual.
 
 ### Ferramentas disponíveis
 
@@ -500,8 +574,8 @@ class FileManagerResponse(BaseModel):
 
 | Módulo | Responsabilidade |
 |---|---|
-| `main.py` | Configuração do app FastAPI, CORS, Uvicorn e montagem do MCP em `/mcp` |
-| `mcp_server.py` | Servidor MCP com as 4 ferramentas de controle de dispositivo |
+| `main.py` | Configuração do app FastAPI, CORS e Uvicorn |
+| `mcp_entry.py` | Entrypoint do servidor MCP em transporte STDIO |
 | `app/dependencies.py` | `DeviceManager` singleton; provedor `get_device_manager()` |
 | `app/services/device_service.py` | `DeviceService`: toda a lógica de negócio; provedor `get_device_service()` |
 | `app/routes/device.py` | Endpoints REST e WebSocket; injetam `DeviceService` via `Depends` |

@@ -1,16 +1,3 @@
-"""
-MCP Tools — Fast Bridge
-=======================
-Registra as ferramentas MCP no servidor definido em server.py.
-Este módulo deve ser importado como efeito colateral para que os
-decoradores @mcp.tool() sejam executados e as ferramentas registradas.
-
-Exemplo de uso em main.py:
-    from app.interfaces.mcp.server import mcp
-    import app.interfaces.mcp.tools  # noqa: F401
-    app.mount("/mcp", mcp.streamable_http_app())
-"""
-
 import base64
 
 import adbutils
