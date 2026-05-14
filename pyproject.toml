@@ -33,6 +33,7 @@ dependencies = [
     "lxml==6.0.2",
     "markdown-it-py==4.0.0",
     "markupsafe==3.0.3",
+    "mcp>=1.27.1",
     "mdurl==0.1.2",
     "packaging==26.0",
     "pillow==12.1.1",
